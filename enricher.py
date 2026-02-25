@@ -104,7 +104,7 @@ def enrich_tweet(tweet_text: str, author_handle: str, author_name: str) -> dict:
                 "stream": False,
                 "options": {
                     "temperature": 0.3,
-                    "num_predict": 5000,  # thinking 모델은 더 많은 토큰 필요
+                    "num_predict": 8000,  # thinking 모델은 더 많은 토큰 필요
                 }
             },
             timeout=300.0,
