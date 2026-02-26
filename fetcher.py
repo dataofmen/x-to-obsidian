@@ -3,7 +3,6 @@ X.com 북마크를 쿠키 기반으로 가져옵니다 (공식 API 키 불필요
 """
 
 import asyncio
-import ssl
 from dataclasses import dataclass
 
 import httpx
@@ -33,7 +32,6 @@ async def fetch_bookmarks(cookies: dict, count: int = 20, verify_ssl: bool = Tru
 
     # SSL 검증 비활성화가 필요한 경우
     if not verify_ssl:
-        # httpx 클라이언트에 SSL 검증 비활성화
         httpx_client = httpx.AsyncClient(verify=False)
         client = Client("en-US", httpx_client=httpx_client)
     else:
@@ -54,6 +52,69 @@ async def fetch_bookmarks(cookies: dict, count: int = 20, verify_ssl: bool = Tru
 
     tweets = []
     for item in result:
+        # 텍스트 추출
+        raw_text = item.full_text if hasattr(item, "full_text") and item.full_text else item.text
+
+        # Article 형식 확인 (t.co 링크만 있는 경우)
+        is_article = raw_text and raw_text.strip().startswith("https://t.co/")
+
+        if is_article and hasattr(item, "urls") and item.urls:
+            # Article ID 추출
+            for url_info in item.urls:
+                expanded_url = url_info.get("expanded_url", "")
+                if "/i/article/" in expanded_url:
+                    article_id = expanded_url.split("/i/article/")[-1].split("?")[0]
+                    article_url = f"https://x.com/i/article/{article_id}"
+                    print(f"  ↳ Article 감지, Playwright로 내용 가져오는 중...")
+
+                    try:
+                        from playwright.async_api import async_playwright
+
+                        async with async_playwright() as p:
+                            browser = await p.chromium.launch(headless=True)
+                            context = await browser.new_context(
+                                storage_state={
+                                    "cookies": [
+                                        {"name": "auth_token", "value": cookies.get("auth_token", ""), "domain": ".x.com", "path": "/"},
+                                        {"name": "ct0", "value": cookies.get("ct0", ""), "domain": ".x.com", "path": "/"},
+                                    ]
+                                }
+                            )
+                            page = await context.new_page()
+                            try:
+                                await page.goto(article_url, wait_until="domcontentloaded", timeout=60000)
+                                await page.wait_for_selector('[data-testid="tweetText"]', timeout=10000)
+                            except Exception:
+                                pass  # 요소 대기 실패해도 계속 진행
+
+                            # Article 텍스트 추출
+                            article_text = await page.evaluate("""() => {
+                                const selectors = [
+                                    '[data-testid="tweetText"]',
+                                    '[data-testid="article"]',
+                                    'article [data-testid="tweetText"]',
+                                ];
+                                for (const selector of selectors) {
+                                    const elements = document.querySelectorAll(selector);
+                                    if (elements.length > 0) {
+                                        return Array.from(elements).map(el => el.innerText).join('\\n\\n');
+                                    }
+                                }
+                                return null;
+                            }""")
+
+                            await browser.close()
+
+                            if article_text and len(article_text) > 50:
+                                print(f"    ✓ Article 내용 가져옴 ({len(article_text)}자)")
+                                raw_text = article_text
+
+                    except ImportError:
+                        print(f"    ✗ Playwright 미설치: 'pip install playwright && playwright install chromium'")
+                    except Exception as e:
+                        print(f"    ✗ Article 가져오기 실패: {e}")
+                    break
+
         media_urls = []
         if hasattr(item, "media") and item.media:
             for m in item.media:
@@ -62,7 +123,7 @@ async def fetch_bookmarks(cookies: dict, count: int = 20, verify_ssl: bool = Tru
 
         tweets.append(Tweet(
             id=item.id,
-            text=item.full_text if hasattr(item, "full_text") else item.text,
+            text=raw_text,
             author_name=item.user.name,
             author_handle=item.user.screen_name,
             url=f"https://x.com/{item.user.screen_name}/status/{item.id}",
