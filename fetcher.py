@@ -52,8 +52,39 @@ async def fetch_bookmarks(cookies: dict, count: int = 20, verify_ssl: bool = Tru
 
     tweets = []
     for item in result:
-        # 텍스트 추출
-        raw_text = item.full_text if hasattr(item, "full_text") and item.full_text else item.text
+        # 1. 북마크된 트윗 원본 조회 (Long tweet 등 상세 정보 확보)
+        try:
+            detailed_tweet = await client.get_tweet_by_id(item.id)
+            if not detailed_tweet:
+                detailed_tweet = item
+        except Exception as e:
+            print(f"  ↳ 개별 트윗 상세 조회 실패: {e}")
+            detailed_tweet = item
+
+        # 텍스트 추출 (note_tweet, full_text 우선 탐색)
+        raw_text = ""
+        if hasattr(detailed_tweet, "note_tweet") and detailed_tweet.note_tweet:
+            raw_text = detailed_tweet.note_tweet.get("note_tweet_results", {}).get("result", {}).get("text", "")
+
+        if not raw_text:
+            raw_text = detailed_tweet.full_text if hasattr(detailed_tweet, "full_text") and detailed_tweet.full_text else detailed_tweet.text
+
+        # Thread(쓰레드) 텍스트 수집 (답글들)
+        author_screen_name = detailed_tweet.user.screen_name
+        thread_texts = []
+        current_tweet = detailed_tweet
+
+        # 2. 쓰레드(답글) 가져오기 로직
+        try:
+            # client.get_tweet_by_id(...) 호출 시 replies 에 접근 가능한 경우가 있음
+            if hasattr(current_tweet, "replies") and current_tweet.replies:
+                replies = current_tweet.replies
+                for reply in replies:
+                    if reply.user.screen_name == author_screen_name:
+                        reply_text = reply.full_text if hasattr(reply, "full_text") and reply.full_text else reply.text
+                        thread_texts.append(reply_text)
+        except Exception as e:
+            print(f"  ↳ 쓰레드 답글 조회 실패: {e}")
 
         # Article 형식 확인 (t.co 링크만 있는 경우)
         is_article = raw_text and raw_text.strip().startswith("https://t.co/")
@@ -115,19 +146,23 @@ async def fetch_bookmarks(cookies: dict, count: int = 20, verify_ssl: bool = Tru
                         print(f"    ✗ Article 가져오기 실패: {e}")
                     break
 
+        if thread_texts:
+            print(f"    ✓ 쓰레드(답글) {len(thread_texts)}개 병합")
+            raw_text = raw_text + "\n\n---\n\n" + "\n\n---\n\n".join(thread_texts)
+
         media_urls = []
-        if hasattr(item, "media") and item.media:
-            for m in item.media:
+        if hasattr(detailed_tweet, "media") and detailed_tweet.media:
+            for m in detailed_tweet.media:
                 if hasattr(m, "media_url_https"):
                     media_urls.append(m.media_url_https)
 
         tweets.append(Tweet(
-            id=item.id,
+            id=detailed_tweet.id,
             text=raw_text,
-            author_name=item.user.name,
-            author_handle=item.user.screen_name,
-            url=f"https://x.com/{item.user.screen_name}/status/{item.id}",
-            created_at=str(item.created_at),
+            author_name=detailed_tweet.user.name,
+            author_handle=detailed_tweet.user.screen_name,
+            url=f"https://x.com/{detailed_tweet.user.screen_name}/status/{detailed_tweet.id}",
+            created_at=str(detailed_tweet.created_at),
             media_urls=media_urls,
         ))
 

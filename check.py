@@ -83,18 +83,18 @@ def check_cookies():
         fail(f"쿠키 추출 오류: {e}")
 
 
-def check_obsidian():
-    section("Obsidian inbox 경로")
-    from config import OBSIDIAN_INBOX
-    vault = OBSIDIAN_INBOX.parent
+def check_output_dir():
+    section("기본 저장 경로 (Output Directory)")
+    from config import DEFAULT_OUTPUT_DIR
+    vault = DEFAULT_OUTPUT_DIR.parent
     if vault.exists():
-        ok(f"vault 존재: {vault}")
-        OBSIDIAN_INBOX.mkdir(parents=True, exist_ok=True)
-        ok(f"inbox 생성/확인: {OBSIDIAN_INBOX}")
+        ok(f"경로 속 부모 폴더 존재: {vault}")
+        DEFAULT_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        ok(f"저장 폴더 생성/확인: {DEFAULT_OUTPUT_DIR}")
     else:
-        fail(
-            f"vault 경로를 찾을 수 없습니다: {vault}\n"
-            "  Obsidian이 iCloud와 동기화되어 있는지 확인하세요."
+        warn(
+            f"기본 저장 경로의 부모를 찾을 수 없습니다: {vault}\n"
+            "  경로가 맞는지 설정(settings.json)을 확인하세요."
         )
 
 
@@ -104,7 +104,7 @@ if __name__ == "__main__":
     check_packages()
     check_ollama()
     check_cookies()
-    check_obsidian()
+    check_output_dir()
     print(f"\n{'─' * 40}")
     print("  점검 완료. ✗ 항목을 해결한 후 main.py를 실행하세요.")
     print('─' * 40)

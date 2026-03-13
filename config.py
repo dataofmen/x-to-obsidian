@@ -28,14 +28,14 @@ def _expand_path(path_str: str) -> Path:
     return Path(path_str).expanduser()
 
 
-# Obsidian vault inbox path (iCloud synced)
-OBSIDIAN_INBOX = _expand_path(
+# Default output directory (fallback)
+DEFAULT_OUTPUT_DIR = _expand_path(
     _settings.get("obsidian_inbox", "~/Library/Mobile Documents/iCloud~md~obsidian/Documents/Inbox")
 )
 
 # Ollama settings
 OLLAMA_URL = _settings.get("ollama_url", "http://localhost:11434")
-OLLAMA_MODEL = _settings.get("ollama_model", "llama3.2")
+OLLAMA_MODEL = _settings.get("ollama_model", "glm-5:cloud")
 
 # Sync settings
 BOOKMARK_FETCH_COUNT = _settings.get("bookmark_fetch_count", 5)

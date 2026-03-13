@@ -36,7 +36,7 @@ cat > "$PLIST_PATH" << EOF
     </array>
 
     <key>StartInterval</key>
-    <integer>900</integer>
+    <integer>3600</integer>
 
     <key>StandardOutPath</key>
     <string>$LOG_FILE</string>
@@ -73,7 +73,7 @@ echo ""
 echo "✓ launchd 서비스 등록 완료!"
 echo ""
 echo "설정:"
-echo "  - 15분마다 실행 (900초)"
+echo "  - 1시간마다 실행 (3600초)"
 echo "  - 컴퓨터 시작/로그인 시 자동 시작"
 echo ""
 echo "관리 명령어:"
